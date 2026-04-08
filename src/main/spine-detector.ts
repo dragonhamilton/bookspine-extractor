@@ -50,7 +50,9 @@ function gaussianSmooth1D(signal: number[], sigma: number): number[] {
  * The signal is smoothed internally before peak detection.
  */
 function findPeaks(signal: number[], minSep: number, minHeight: number): number[] {
-  const s = gaussianSmooth1D(signal, Math.max(2, minSep / 4))
+  // Larger sigma (minSep/3 vs /4) helps aggregate boundary signal that is
+  // spread across several columns when the rotation correction is imperfect.
+  const s = gaussianSmooth1D(signal, Math.max(2, minSep / 3))
   const peaks: number[] = []
 
   for (let i = minSep; i < s.length - minSep; i++) {
@@ -100,26 +102,38 @@ function sobelGy(data: Buffer, x: number, y: number, w: number): number {
  *  90°  → vertical edges    (books standing upright)
  *  Any other value indicates leaning spines.
  *
- * Method: build a magnitude-weighted histogram of gradient directions,
- * then derive the edge angle as (gradient angle + 90°) % 180.
+ * Method: build a count-weighted histogram of gradient directions (each
+ * strong-edge pixel casts one vote regardless of magnitude), then derive
+ * the edge angle as (gradient angle + 90°) % 180.
+ *
+ * Count-weighting prevents a single high-contrast non-spine feature (a
+ * shelf edge, a bold title letter) from flooding the accumulator and
+ * pulling the detected angle away from the true spine direction.
+ *
+ * The top and bottom 10 % of the image are excluded because truly
+ * horizontal shelf edges create a strong 90° gradient signal that would
+ * incorrectly suggest a 0° (horizontal) spine orientation.
  */
 function detectEdgeAngle(data: Buffer, width: number, height: number): number {
   const BINS = 180
   const hist = new Float64Array(BINS)
 
-  for (let y = 1; y < height - 1; y++) {
+  // Exclude shelf-edge regions at top / bottom of frame
+  const yMargin = Math.floor(height * 0.10)
+
+  for (let y = Math.max(1, yMargin); y < Math.min(height - 1, height - yMargin); y++) {
     for (let x = 1; x < width - 1; x++) {
       const dx = sobelGx(data, x, y, width)
       const dy = sobelGy(data, x, y, width)
       const mag = Math.sqrt(dx * dx + dy * dy)
-      if (mag < 15) continue // ignore weak gradients / flat regions
+      if (mag < 20) continue // ignore weak / noisy gradients
 
       // Map gradient angle to [0°, 180°) (undirected)
       let angle = Math.atan2(dy, dx) * (180 / Math.PI)
       if (angle < 0) angle += 180
       if (angle >= 180) angle -= 180
 
-      hist[Math.floor(angle)] += mag
+      hist[Math.floor(angle)]++ // count-weighted: one vote per pixel
     }
   }
 
@@ -208,7 +222,9 @@ export async function detectSpines(imagePath: string): Promise<DetectionResult> 
 
   // edgeAngle ≈  90° → spines are vertical (books standing up)
   // edgeAngle ≈   0° → spines are horizontal (books lying flat)
-  const isVertical = edgeAngle > 45 && edgeAngle <= 135
+  // Use a wide vertical band (30°–150°) so moderately leaning books are
+  // still treated as vertical rather than misclassified as horizontal.
+  const isVertical = edgeAngle > 30 && edgeAngle <= 150
 
   // ── 3. Compute correction rotation ───────────────────────────────────────
   // jimp.rotate(deg): positive = clockwise.
@@ -239,12 +255,12 @@ export async function detectSpines(imagePath: string): Promise<DetectionResult> 
   // Assume at most ~40 spines; minimum separation suppresses false peaks.
   const minSpine = Math.max(10, Math.round(profileLen / 40))
 
-  // Coverage profile values are in [0, 1].  A true spine boundary needs at
-  // least 25 % of the column height to be a strong edge.  Fall back to 12 %
-  // if too few peaks are found (e.g. very low-contrast image).
-  let peakPositions = findPeaks(profile, minSpine, 0.25)
+  // Coverage profile values are in [0, 1].  Primary threshold 0.20 catches
+  // lower-contrast boundaries (e.g. two dark adjacent spines).  Fall back to
+  // 0.10 if still too few peaks found.
+  let peakPositions = findPeaks(profile, minSpine, 0.20)
   if (peakPositions.length < 2) {
-    peakPositions = findPeaks(profile, Math.floor(minSpine / 2), 0.12)
+    peakPositions = findPeaks(profile, Math.floor(minSpine / 2), 0.10)
   }
 
   const boundaries = [0, ...peakPositions, profileLen - 1]
