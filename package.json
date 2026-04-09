@@ -11,6 +11,7 @@
     "preview": "electron-vite preview"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.86.1",
     "jimp": "^0.22.12",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"
