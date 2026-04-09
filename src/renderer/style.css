@@ -50,9 +50,20 @@ body {
 
 .app-main {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;       /* let flexbox shrink below content height */
+  overflow: hidden;    /* sections manage their own scroll */
   padding: 24px;
+  display: flex;
+  flex-direction: column;
 }
+
+/* ── Scrollbar — always visible, styled ──────────────────────────────────── */
+
+::-webkit-scrollbar            { width: 6px; height: 6px; }
+::-webkit-scrollbar-track      { background: transparent; }
+::-webkit-scrollbar-thumb      { background: var(--bg3); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover{ background: #6b7280; }
+* { scrollbar-width: thin; scrollbar-color: var(--bg3) transparent; }
 
 /* ── Buttons ─────────────────────────────────────────────────────────────── */
 
@@ -116,6 +127,9 @@ body {
 /* ── Image section ───────────────────────────────────────────────────────── */
 
 .image-section {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -191,9 +205,14 @@ body {
 /* ── Spine grid ──────────────────────────────────────────────────────────── */
 
 .spine-grid {
+  flex: 1;
+  min-height: 0;
+  overflow-y: scroll;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
+  align-content: flex-start;
+  padding-right: 8px;
 }
 
 .spine-card {
@@ -316,7 +335,13 @@ body {
 
 /* ── Done section ────────────────────────────────────────────────────────── */
 
-.done-section { display: flex; flex-direction: column; gap: 16px; }
+.done-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 
 .done-header {
   display: flex;
@@ -331,7 +356,13 @@ body {
 
 /* ── SpineReview ─────────────────────────────────────────────────────────── */
 
-.review-section { display: flex; flex-direction: column; gap: 0; }
+.review-section {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
 
 .review-header {
   display: flex;
@@ -355,9 +386,13 @@ body {
 .review-header-actions { display: flex; gap: 8px; }
 
 .review-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: scroll;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  padding-right: 8px;  /* keep cards away from scrollbar */
 }
 
 .review-card {
