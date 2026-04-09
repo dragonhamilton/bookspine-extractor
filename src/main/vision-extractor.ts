@@ -39,7 +39,8 @@ export async function extractSpineText(
     'Extract the book title and author from the spine image provided.',
     'Text may be rotated, partially obscured, faded, or at an angle — do your best.',
     '',
-    'Respond with a single JSON object and nothing else:',
+    'The image shows exactly one book spine. Extract only that one book.',
+    'Respond with a SINGLE JSON object and nothing else — no array, no markdown, no explanation:',
     '{"title": "...", "author": "...", "confidence": 0.0}',
     'Use confidence 0.0–1.0 to express how certain you are.',
     'If you truly cannot read the text, return {"title": "Unknown", "author": "Unknown", "confidence": 0.0}',
@@ -106,15 +107,21 @@ export async function extractSpineText(
 
   // ── Parse ─────────────────────────────────────────────────────────────────
   try {
-    const jsonMatch = raw.match(/\{[\s\S]*\}/)
-    const parsed    = JSON.parse(jsonMatch ? jsonMatch[0] : raw)
+    // Match either a JSON object {...} or array [{...}]
+    const jsonMatch = raw.match(/(\[[\s\S]*\]|\{[\s\S]*\})/)
+    let parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw)
+
+    // If the model returned an array despite instructions, take the first element
+    if (Array.isArray(parsed)) parsed = parsed[0]
+
     return {
       title:      String(parsed.title  ?? '').trim(),
       author:     String(parsed.author ?? '').trim(),
       confidence: Math.min(1, Math.max(0, Number(parsed.confidence) || 0.5))
     }
   } catch {
-    // Graceful fallback: return whatever text we got
-    return { title: raw.slice(0, 120), author: '', confidence: 0.2 }
+    // Graceful fallback: return whatever text we got, stripping any JSON noise
+    const clean = raw.replace(/[{}\[\]"]/g, ' ').trim().slice(0, 120)
+    return { title: clean, author: '', confidence: 0.1 }
   }
 }
