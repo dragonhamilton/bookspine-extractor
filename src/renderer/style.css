@@ -28,6 +28,13 @@ body {
   flex-direction: column;
 }
 
+.app {
+  flex: 1;           /* fill #root */
+  min-height: 0;     /* allow shrinking so children can scroll */
+  display: flex;
+  flex-direction: column;
+}
+
 /* ── Header ──────────────────────────────────────────────────────────────── */
 
 .app-header {
